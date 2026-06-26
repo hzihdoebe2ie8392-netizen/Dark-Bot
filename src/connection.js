@@ -11,7 +11,7 @@ const path = require('path');
 const fs = require('fs');
 const pino = require('pino');
 const qrcodeTerminal = require('qrcode-terminal');
-const QRCode = require('qrcode'); // إضافة مكتبة توليد الصور
+const QRCode = require('qrcode');
 const db = require('./database/db');
 const { handleMessage } = require('./handlers/messageHandler');
 const { handleGroupUpdate, handleGroupJoin, handleAdminPromotion, handleAdminDemotion } = require('./handlers/groupEvents');
@@ -19,11 +19,12 @@ const { normalizeJid } = require('./utils/helpers');
 const { kickGlobalBannedMember } = require('./utils/globalBan');
 const logger = require('./utils/logger');
 
-const SESSION_DIR = path.join(process.cwd(), 'sessions', process.env.SESSION_NAME || 'dark-bot-session');
+// استخدام مسار ثابت داخل مجلد data الذي سيتم ربطه بـ Render Disk
+const SESSION_DIR = path.join(process.cwd(), 'data', 'sessions');
 
 let sock = null;
 let retryCount = 0;
-let lastQR = null; // تخزين آخر QR
+let lastQR = null;
 const MAX_RETRIES = 10;
 
 async function connectToWhatsApp() {
@@ -56,7 +57,7 @@ async function connectToWhatsApp() {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
-      lastQR = qr; // تحديث الـ QR
+      lastQR = qr;
       logger.info('QR Code ready - scan with WhatsApp:');
       qrcodeTerminal.generate(qr, { small: true });
     }
@@ -76,7 +77,8 @@ async function connectToWhatsApp() {
         const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
         setTimeout(connectToWhatsApp, delay);
       } else if (statusCode === DisconnectReason.loggedOut) {
-        fs.rmSync(SESSION_DIR, { recursive: true, force: true });
+        // لا نحذف المجلد تلقائياً في البيئات السحابية لتجنب فقدان البيانات
+        // fs.rmSync(SESSION_DIR, { recursive: true, force: true });
         process.exit(1);
       } else {
         process.exit(1);
@@ -122,7 +124,6 @@ async function connectToWhatsApp() {
   return sock;
 }
 
-// دالة لجلب الـ QR كصورة
 async function getQRImage() {
   if (!lastQR) return null;
   try {
