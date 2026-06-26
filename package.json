@@ -1,0 +1,23 @@
+{
+  "name": "dark-bot",
+  "version": "1.0.0",
+  "description": "Dark Bot - WhatsApp Group Management Bot",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "pm2": "pm2 start src/index.js --name dark-bot --restart-delay=3000 --max-restarts=10",
+    "pm2:stop": "pm2 stop dark-bot",
+    "pm2:logs": "pm2 logs dark-bot"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.9",
+    "better-sqlite3": "^9.4.3",
+    "dotenv": "^16.4.5",
+    "pino": "^9.1.0",
+    "express": "^4.18.2",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
