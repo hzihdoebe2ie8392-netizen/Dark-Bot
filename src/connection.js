@@ -14,7 +14,7 @@ const qrcodeTerminal = require('qrcode-terminal');
 const QRCode = require('qrcode'); // إضافة مكتبة توليد الصور
 const db = require('./database/db');
 const { handleMessage } = require('./handlers/messageHandler');
-const { handleGroupUpdate, handleGroupJoin, handleAdminPromotion } = require('./handlers/groupEvents');
+const { handleGroupUpdate, handleGroupJoin, handleAdminPromotion, handleAdminDemotion } = require('./handlers/groupEvents');
 const { normalizeJid } = require('./utils/helpers');
 const { kickGlobalBannedMember } = require('./utils/globalBan');
 const logger = require('./utils/logger');
@@ -104,6 +104,17 @@ async function connectToWhatsApp() {
 
   sock.ev.on('group-participants.update', async (update) => {
     try {
+      const botJid = normalizeJid(sock.user?.id || '');
+      const isBotAffected = update.participants.some(p => normalizeJid(p) === botJid);
+      
+      if (isBotAffected) {
+        if (update.action === 'promote') {
+          await handleAdminPromotion(sock, update.id);
+        } else if (update.action === 'demote') {
+          await handleAdminDemotion(sock, update.id);
+        }
+      }
+      
       await handleGroupUpdate(sock, update);
     } catch (e) {}
   });

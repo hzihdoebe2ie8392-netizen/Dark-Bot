@@ -10,6 +10,10 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime() });
+});
+
 app.get('/', async (req, res) => {
   const qrImage = await getQRImage();
   if (qrImage) {

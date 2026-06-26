@@ -84,7 +84,7 @@ async function handleGroupJoin(sock, groupJid, groupMeta) {
       });
     } else {
       await sock.sendMessage(groupJid, {
-        text: `✅ تم تفعيل بوت Dark بنجاح! 🛡️\n\nأنا الآن أعمل لحماية وإدارة مجموعتكم 24/7.${SIG}`
+        text: `✅ تم تفعيل جميع الأنظمة${SIG}`
       });
     }
   } catch (e) {
@@ -95,9 +95,17 @@ async function handleGroupJoin(sock, groupJid, groupMeta) {
 async function handleAdminPromotion(sock, groupJid) {
   try {
     await sock.sendMessage(groupJid, {
-      text: `✅ تم تفعيل بوت Dark بنجاح! 🛡️\n\nأنا الآن أعمل لحماية وإدارة مجموعتكم 24/7.${SIG}`
+      text: `✅ تم تفعيل جميع الأنظمة${SIG}`
     });
   } catch (e) {}
 }
 
-module.exports = { handleGroupUpdate, handleGroupJoin, handleAdminPromotion };
+async function handleAdminDemotion(sock, groupJid) {
+  try {
+    await sock.sendMessage(groupJid, {
+      text: `⚠️ تم سحب صلاحيات البوت${SIG}`
+    });
+  } catch (e) {}
+}
+
+module.exports = { handleGroupUpdate, handleGroupJoin, handleAdminPromotion, handleAdminDemotion };

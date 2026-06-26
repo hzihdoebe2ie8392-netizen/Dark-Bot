@@ -150,7 +150,7 @@ async function handleMessage(sock, msg) {
       db.getDb().prepare('UPDATE groups SET msg_count = msg_count + 1 WHERE jid = ?').run(groupJid);
     } catch (e) {}
 
-    // Check if muted - delete messages silently
+    // Check if muted - delete all message types (text, media, etc.) silently
     if (db.isMuted(senderJid, groupJid) && !isAdmin) {
       try { await sock.sendMessage(groupJid, { delete: msg.key }); } catch (e) {}
       return;
