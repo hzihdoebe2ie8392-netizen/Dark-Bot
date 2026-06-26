@@ -16,19 +16,21 @@ const db = require('./database/db');
 const { handleMessage } = require('./handlers/messageHandler');
 const { handleGroupUpdate, handleGroupJoin, handleAdminPromotion, handleAdminDemotion } = require('./handlers/groupEvents');
 const { normalizeJid } = require('./utils/helpers');
-const { kickGlobalBannedMember } = require('./utils/globalBan');
 const logger = require('./utils/logger');
 
-// استخدام مسار ثابت داخل مجلد data الذي سيتم ربطه بـ Render Disk
+// مسار ثابت داخل مجلد data
 const SESSION_DIR = path.join(process.cwd(), 'data', 'sessions');
 
 let sock = null;
 let retryCount = 0;
 let lastQR = null;
-const MAX_RETRIES = 10;
+const MAX_RETRIES = 15;
 
 async function connectToWhatsApp() {
-  if (!fs.existsSync(SESSION_DIR)) fs.mkdirSync(SESSION_DIR, { recursive: true });
+  if (!fs.existsSync(SESSION_DIR)) {
+    fs.mkdirSync(SESSION_DIR, { recursive: true });
+    logger.info('Created session directory at: ' + SESSION_DIR);
+  }
 
   const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
   const { version } = await fetchLatestBaileysVersion();
@@ -70,17 +72,20 @@ async function connectToWhatsApp() {
       
       logger.warn(`Connection closed. statusCode=${statusCode} reason=${reason}`);
 
+      // إعادة المحاولة في معظم الحالات باستثناء تسجيل الخروج المتعمد
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
       if (shouldReconnect && retryCount < MAX_RETRIES) {
         retryCount++;
-        const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 60000); // زيادة وقت التأخير تدريجياً
+        logger.info(`Retrying connection in ${delay/1000}s (Attempt ${retryCount}/${MAX_RETRIES})...`);
         setTimeout(connectToWhatsApp, delay);
       } else if (statusCode === DisconnectReason.loggedOut) {
-        // لا نحذف المجلد تلقائياً في البيئات السحابية لتجنب فقدان البيانات
-        // fs.rmSync(SESSION_DIR, { recursive: true, force: true });
+        logger.error('Logged out from WhatsApp. Please scan QR code again.');
+        // لا نحذف الجلسة تلقائياً لترك فرصة للفحص اليدوي
         process.exit(1);
       } else {
+        logger.error('Max retries reached. Exiting...');
         process.exit(1);
       }
     } else if (connection === 'open') {
