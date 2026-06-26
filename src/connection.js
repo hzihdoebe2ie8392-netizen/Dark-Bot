@@ -17,9 +17,10 @@ const { handleMessage } = require('./handlers/messageHandler');
 const { handleGroupUpdate, handleGroupJoin, handleAdminPromotion, handleAdminDemotion } = require('./handlers/groupEvents');
 const { normalizeJid } = require('./utils/helpers');
 const logger = require('./utils/logger');
+const { useMongoDBAuthState } = require('./utils/mongoSession');
 
-// مسار ثابت داخل مجلد data
 const SESSION_DIR = path.join(process.cwd(), 'data', 'sessions');
+const MONGO_URI = process.env.MONGO_URI;
 
 let sock = null;
 let retryCount = 0;
@@ -27,12 +28,18 @@ let lastQR = null;
 const MAX_RETRIES = 15;
 
 async function connectToWhatsApp() {
-  if (!fs.existsSync(SESSION_DIR)) {
-    fs.mkdirSync(SESSION_DIR, { recursive: true });
-    logger.info('Created session directory at: ' + SESSION_DIR);
+  let authState;
+
+  if (MONGO_URI) {
+    logger.info('Using MongoDB for session storage...');
+    authState = await useMongoDBAuthState(MONGO_URI);
+  } else {
+    logger.info('Using local files for session storage...');
+    if (!fs.existsSync(SESSION_DIR)) fs.mkdirSync(SESSION_DIR, { recursive: true });
+    authState = await useMultiFileAuthState(SESSION_DIR);
   }
 
-  const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
+  const { state, saveCreds } = authState;
   const { version } = await fetchLatestBaileysVersion();
 
   logger.info(`Using WA version: ${version.join('.')}`);
@@ -72,17 +79,15 @@ async function connectToWhatsApp() {
       
       logger.warn(`Connection closed. statusCode=${statusCode} reason=${reason}`);
 
-      // إعادة المحاولة في معظم الحالات باستثناء تسجيل الخروج المتعمد
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
       if (shouldReconnect && retryCount < MAX_RETRIES) {
         retryCount++;
-        const delay = Math.min(1000 * Math.pow(2, retryCount), 60000); // زيادة وقت التأخير تدريجياً
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 60000);
         logger.info(`Retrying connection in ${delay/1000}s (Attempt ${retryCount}/${MAX_RETRIES})...`);
         setTimeout(connectToWhatsApp, delay);
       } else if (statusCode === DisconnectReason.loggedOut) {
         logger.error('Logged out from WhatsApp. Please scan QR code again.');
-        // لا نحذف الجلسة تلقائياً لترك فرصة للفحص اليدوي
         process.exit(1);
       } else {
         logger.error('Max retries reached. Exiting...');
