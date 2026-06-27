@@ -8,11 +8,21 @@ const AuthSchema = new mongoose.Schema({
     data: { type: String, required: true }
 });
 
-const AuthModel = mongoose.model('Auth', AuthSchema);
+// منع إعادة تعريف الموديل إذا كان موجوداً بالفعل
+const AuthModel = mongoose.models.Auth || mongoose.model('Auth', AuthSchema);
 
 const useMongoDBAuthState = async (mongoUri) => {
-    if (mongoose.connection.readyState === 0) {
-        await mongoose.connect(mongoUri);
+    try {
+        if (mongoose.connection.readyState === 0) {
+            await mongoose.connect(mongoUri, { 
+                serverSelectionTimeoutMS: 5000,
+                connectTimeoutMS: 10000 
+            });
+            console.log('Successfully connected to MongoDB');
+        }
+    } catch (err) {
+        console.error('CRITICAL: MongoDB Connection Failed:', err.message);
+        return null; // سيؤدي هذا إلى العودة لاستخدام الجلسة المحلية في connection.js
     }
 
     const readData = async (id) => {
@@ -26,22 +36,31 @@ const useMongoDBAuthState = async (mongoUri) => {
                 return value;
             });
         } catch (error) {
+            console.error(`Error reading data for ${id}:`, error.message);
             return null;
         }
     };
 
     const writeData = async (id, data) => {
-        const str = JSON.stringify(data, (key, value) => {
-            if (Buffer.isBuffer(value)) {
-                return { type: 'Buffer', data: value.toJSON().data };
-            }
-            return value;
-        });
-        await AuthModel.findOneAndUpdate({ id }, { data: str }, { upsert: true });
+        try {
+            const str = JSON.stringify(data, (key, value) => {
+                if (Buffer.isBuffer(value)) {
+                    return { type: 'Buffer', data: value.toJSON().data };
+                }
+                return value;
+            });
+            await AuthModel.findOneAndUpdate({ id }, { data: str }, { upsert: true });
+        } catch (error) {
+            console.error(`Error writing data for ${id}:`, error.message);
+        }
     };
 
     const removeData = async (id) => {
-        await AuthModel.deleteOne({ id });
+        try {
+            await AuthModel.deleteOne({ id });
+        } catch (error) {
+            console.error(`Error removing data for ${id}:`, error.message);
+        }
     };
 
     const creds = await readData('creds') || {

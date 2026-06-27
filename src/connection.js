@@ -28,12 +28,19 @@ let lastQR = null;
 const MAX_RETRIES = 15;
 
 async function connectToWhatsApp() {
-  let authState;
+  let authState = null;
 
   if (MONGO_URI) {
-    logger.info('Using MongoDB for session storage...');
-    authState = await useMongoDBAuthState(MONGO_URI);
-  } else {
+    logger.info('Attempting to use MongoDB for session storage...');
+    try {
+        authState = await useMongoDBAuthState(MONGO_URI);
+    } catch (err) {
+        logger.error(`MongoDB error: ${err.message}. Falling back to local files.`);
+    }
+  }
+
+  // Fallback to local files if MongoDB fails or is not provided
+  if (!authState) {
     logger.info('Using local files for session storage...');
     if (!fs.existsSync(SESSION_DIR)) fs.mkdirSync(SESSION_DIR, { recursive: true });
     authState = await useMultiFileAuthState(SESSION_DIR);
