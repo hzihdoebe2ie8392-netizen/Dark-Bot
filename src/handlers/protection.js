@@ -18,7 +18,8 @@ function invalidateBannedWordsCache(groupJid) {
 }
 
 async function handleProtection(sock, msg, group, senderJid, isAdmin) {
-  if (isAdmin) return false; // Admins bypass all protections
+  // Admins bypass all protections
+  if (isAdmin) return false;
 
   const msgType = getMsgType(msg);
   const text = msg?.message?.conversation ||
@@ -27,7 +28,7 @@ async function handleProtection(sock, msg, group, senderJid, isAdmin) {
     msg?.message?.videoMessage?.caption ||
     msg?.message?.documentMessage?.caption || '';
 
-  // Check forwarded messages - check all message types
+  // Check forwarded messages
   const isForwarded = !!(
     msg?.message?.extendedTextMessage?.contextInfo?.isForwarded ||
     msg?.message?.imageMessage?.contextInfo?.isForwarded ||
@@ -41,10 +42,10 @@ async function handleProtection(sock, msg, group, senderJid, isAdmin) {
 
   let violationType = null;
 
+  // Logic to determine violation
   if (group.anti_forward && isForwarded) {
     violationType = 'forward';
   } else if (group.anti_link && containsLink(text)) {
-    // text already includes captions from imageMessage, videoMessage, documentMessage
     violationType = 'link';
   } else if (group.anti_sticker && msgType === 'sticker') {
     violationType = 'sticker';
@@ -75,28 +76,40 @@ async function handleProtection(sock, msg, group, senderJid, isAdmin) {
 
   if (!violationType) return false;
 
-  // Delete the message only
+  // 1. DELETE THE MESSAGE IMMEDIATELY
   try {
-    await sock.sendMessage(group.jid, { delete: msg.key });
-  } catch (e) {}
+    await sock.sendMessage(group.jid, { 
+        delete: {
+            remoteJid: group.jid,
+            fromMe: false,
+            id: msg.key.id,
+            participant: senderJid
+        }
+    });
+  } catch (e) {
+    console.error('Failed to delete violation message:', e.message);
+  }
 
-  // Send warning - no mute, no kick
+  // 2. SEND WARNING MESSAGE
   const msgs = {
-    link:     '⚠️ الروابط مقفولة',
-    image:    '⚠️ الصور مقفولة',
-    video:    '⚠️ الفيديوهات مقفولة',
-    file:     '⚠️ الملفات مقفولة',
-    sticker:  '⚠️ الملصقات مقفولة',
-    audio:    '⚠️ الصوتيات مقفولة',
-    gif:      '⚠️ الجيفات مقفولة',
-    contact:  '⚠️ جهات الاتصال مقفولة',
-    location: '⚠️ المواقع مقفولة',
-    word:     '⚠️ الكلمات الممنوعة مقفولة',
-    forward:  '⚠️ التوجيه مقفول'
+    link:     '⚠️ الروابط ممنوعة في هذه المجموعة!',
+    image:    '⚠️ الصور ممنوعة حالياً!',
+    video:    '⚠️ الفيديوهات ممنوعة حالياً!',
+    file:     '⚠️ الملفات ممنوعة حالياً!',
+    sticker:  '⚠️ الملصقات ممنوعة حالياً!',
+    audio:    '⚠️ الرسائل الصوتية ممنوعة حالياً!',
+    gif:      '⚠️ الصور المتحركة (GIF) ممنوعة حالياً!',
+    contact:  '⚠️ جهات الاتصال ممنوعة حالياً!',
+    location: '⚠️ المواقع ممنوعة حالياً!',
+    word:     '⚠️ تم رصد كلمة ممنوعة في رسالتك!',
+    forward:  '⚠️ التوجيه ممنوع في هذه المجموعة!'
   };
 
   try {
-    await sock.sendMessage(group.jid, { text: (msgs[violationType] || '⚠️ ممنوع') + SIG });
+    await sock.sendMessage(group.jid, { 
+        text: `@${senderJid.split('@')[0]} ${msgs[violationType] || '⚠️ هذا النوع من الرسائل ممنوع!'}`,
+        mentions: [senderJid]
+    }, { quoted: msg });
   } catch (e) {}
 
   return true;
